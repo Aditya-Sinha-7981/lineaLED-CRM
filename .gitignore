@@ -3,3 +3,7 @@ others/
 docs/*
 
 !docs/showcase.md
+**/node_modules/
+**/.env
+dist/
+build/
