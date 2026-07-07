@@ -1,18 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import SpecCard from '../components/SpecCard'
+import { generateEstimatePdf, uploadPdf, htmlToCanvas, canvasToPdfBlob } from '../lib/pdfGenerator'
 
 export default function QuotePreview() {
   const { boardId } = useParams()
   const navigate = useNavigate()
+  const printRef = useRef(null)
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [estimate, setEstimate] = useState(null)
   const [board, setBoard] = useState(null)
   const [site, setSite] = useState(null)
   const [manualPrice, setManualPrice] = useState('')
-  const [pdfGenerating, setPdfGenerating] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -44,27 +48,64 @@ export default function QuotePreview() {
     if (estData) {
       setEstimate(estData)
       setManualPrice(estData.manual_price?.toString() || '')
+      setPdfUrl(estData.pdf_url || '')
     }
     setLoading(false)
+  }
+
+  async function handleGeneratePdf() {
+    if (!printRef.current) return
+    setGenerating(true)
+    try {
+      const siteName = site?.name || 'Quote'
+      await generateEstimatePdf({
+        element: printRef.current,
+        filename: `Quote_${siteName.replace(/\s+/g, '_')}`,
+      })
+    } catch (err) {
+      setError('PDF generation failed: ' + err.message)
+    }
+    setGenerating(false)
   }
 
   async function handleSendForApproval() {
     setSaving(true)
     setError('')
     try {
+      let est = estimate
+
+      if (!est && board) {
+        const { data: newEst, error: createError } = await supabase
+          .from('estimates')
+          .insert({ board_id: board.id, spec_snapshot: board.spec || {}, status: 'draft' })
+          .select()
+          .single()
+        if (createError) throw createError
+        est = newEst
+        setEstimate(est)
+      }
+
+      if (!pdfUrl && printRef.current) {
+        const canvas = await htmlToCanvas(printRef.current)
+        const blob = canvasToPdfBlob(canvas)
+        const uploadedUrl = await uploadPdf(blob, est.id)
+        setPdfUrl(uploadedUrl)
+        await supabase.from('estimates').update({ pdf_url: uploadedUrl }).eq('id', est.id)
+      }
+
       const { error: updateError } = await supabase
         .from('estimates')
         .update({
           status: 'pending_approval',
           manual_price: manualPrice ? parseFloat(manualPrice) : null,
         })
-        .eq('id', estimate.id)
+        .eq('id', est.id)
 
       if (updateError) throw updateError
 
       navigate('/staff')
     } catch (err) {
-      setError(err.message)
+      setError(err.message || 'Failed to send for approval.')
       setSaving(false)
     }
   }
@@ -85,6 +126,8 @@ export default function QuotePreview() {
     )
   }
 
+  const price = manualPrice ? parseFloat(manualPrice).toLocaleString('en-IN') : null
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
@@ -99,66 +142,86 @@ export default function QuotePreview() {
         </button>
       </header>
 
-      <main className="p-6 max-w-3xl mx-auto space-y-6">
+      <main className="p-6 max-w-5xl mx-auto space-y-6">
         {error && (
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-800 mb-4">{site.name}</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm text-gray-500">
-            <div>{site.address || 'No address'}</div>
-            <div>Status: {site.status}</div>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={handleGeneratePdf}
+            disabled={generating}
+            className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm"
+          >
+            {generating ? 'Generating…' : 'Download PDF'}
+          </button>
+          <button
+            onClick={handleSendForApproval}
+            disabled={saving}
+            className="bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 px-4 py-2 rounded-lg text-sm font-medium"
+          >
+            {saving ? 'Sending…' : 'Send for Approval'}
+          </button>
+        </div>
+
+        <div ref={printRef} className="bg-white rounded-xl shadow-sm overflow-hidden" style={{ width: 1100 }}>
+          <div className="bg-gray-900 text-white px-8 py-6 flex justify-between items-start">
+            <div>
+              <div className="text-2xl font-bold tracking-tight">Signage Quote</div>
+              <div className="text-gray-400 text-sm mt-1">Generated via CRM</div>
+            </div>
+            <div className="text-right text-sm text-gray-400">
+              <div>Date: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+              <div>Ref: {estimate?.id?.slice(0, 8).toUpperCase() || '—'}</div>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="text-center mb-6">
+              <div className="text-2xl font-bold text-orange-500 mb-1">{site.name}</div>
+              <div className="text-gray-500 text-sm">{site.address || 'No address'}</div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-6 mb-6">
+              <div className="col-span-2">
+                <img
+                  src={board.photo_url}
+                  alt="Board"
+                  className="max-w-full max-h-64 object-contain rounded-lg border"
+                  crossOrigin="anonymous"
+                />
+              </div>
+              <div className="text-sm">
+                <div className="mb-3">
+                  <p className="text-gray-400 text-xs uppercase font-medium">Board Type</p>
+                  <p className="font-medium">{board.board_type === 'video_wall' ? 'Video Wall' : 'GSB Signage'}</p>
+                </div>
+                <div className="mb-3">
+                  <p className="text-gray-400 text-xs uppercase font-medium">Dimensions</p>
+                  <p className="font-medium">{board.width_ft} × {board.height_ft} ft</p>
+                </div>
+                <div className="mb-3">
+                  <p className="text-gray-400 text-xs uppercase font-medium">Board Area</p>
+                  <p className="font-medium">{(board.width_ft * board.height_ft).toFixed(2)} sq ft</p>
+                </div>
+                {price && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <p className="text-gray-400 text-xs uppercase font-medium">Quote Amount</p>
+                    <p className="text-2xl font-bold text-orange-600">₹{price}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <SpecCard spec={board.spec} boardType={board.board_type} />
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-400">
+              This estimate is system-generated. Final pricing and technical specifications are subject to validation.
+            </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-800 mb-4">Board Photo</h2>
-          <img
-            src={board.photo_url}
-            alt="Board"
-            className="max-w-full max-h-64 object-contain rounded-lg"
-            crossOrigin="anonymous"
-          />
-          <p className="text-xs text-gray-400 mt-2">
-            {board.width_ft} × {board.height_ft} ft — {board.board_type}
-          </p>
-        </div>
-
-        <SpecCard spec={board.spec} boardType={board.board_type} />
-
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-800 mb-4">Quote Price</h2>
-          <p className="text-xs text-gray-400 mb-3">
-            Price is entered manually — no automatic calculation is applied.
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 text-lg">₹</span>
-            <input
-              type="number"
-              value={manualPrice}
-              onChange={e => setManualPrice(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-lg"
-              placeholder="Enter amount"
-            />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h2 className="font-semibold text-gray-800 mb-4">PDF Generation</h2>
-          <p className="text-sm text-gray-400 mb-3">
-            PDF generation will be wired up in Step 7. For now, you can send for approval directly.
-          </p>
-          <p className="text-xs text-gray-300">PDF preview placeholder — see Step 7.</p>
-        </div>
-
-        <button
-          onClick={handleSendForApproval}
-          disabled={saving}
-          className="w-full bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 py-3 rounded-xl text-sm font-semibold transition-colors"
-        >
-          {saving ? 'Sending…' : 'Send for Approval'}
-        </button>
       </main>
     </div>
   )

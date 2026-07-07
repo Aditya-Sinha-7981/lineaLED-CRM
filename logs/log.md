@@ -53,6 +53,16 @@ Keep log entries honest. If something is broken or incomplete, say so.
 **Status:** Done
 ---
 
+### 2026-07-08 — Survey Screen (Step 5)
+**Task:** Full survey screen — photo upload, canvas rectangle annotation, board type selector, dimension form, spec calculation, save to boards + estimates tables.
+**Built:** `frontend/src/components/PhotoAnnotator.jsx` (canvas overlay with click-drag rectangle draw, saves as {x_pct, y_pct, w_pct, h_pct}), `frontend/src/components/SpecCard.jsx` (renders video_wall or gsb_signage spec output), full rewrite of `SurveyScreen.jsx` (3-step form: photo → annotation → details + calculate), `QuotePreview.jsx` (placeholder page after survey save, price input, send for approval), updated `App.jsx` with `/staff/quote/:boardId` route.
+**How it works:** PhotoAnnotator uses canvas mouse events (mousedown/mousemove/mouseup) to draw a draggable rectangle. Coordinates stored as percentages of image dimensions. SurveyScreen wires up both calculation engines based on board type: video_wall needs env/pitch/cabinet + dimensions; gsb_signage needs only dimensions (in ft or in). On submit: uploads photo to site-photos bucket, inserts/updates boards row, creates draft estimates row, updates site status to 'quoted', redirects to QuotePreview.
+**Connects to:** QuotePreview (Step 6). Photo upload goes to site-photos bucket (needs Storage policy). Board spec is stored as JSONB in boards.spec. Estimates created as draft on survey save.
+**Decisions made:** (1) SpecCard handles both board types with conditional rendering — video_wall shows resolution/pixels/controller; gsb_signage shows modules/wattage/SMPS. (2) Hidden `_env`, `_pitch`, `_cab` stored in spec object to re-populate form on re-edit. (3) Estimate created immediately on survey save as draft — staff can set price and send for approval later from QuotePreview.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
 ---
 ### 2026-07-08 — Supabase schema + RLS (Step 1)
 **Task:** Create all 6 tables (client_orgs → projects → sites → boards → estimates → profiles), apply RLS policies, apply demo cap trigger.
