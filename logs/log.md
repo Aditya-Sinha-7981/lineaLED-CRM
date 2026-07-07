@@ -43,6 +43,16 @@ Keep log entries honest. If something is broken or incomplete, say so.
 **Status:** Done
 ---
 
+### 2026-07-08 — Staff Dashboard + Site List (Step 4)
+**Task:** Staff dashboard with site list scoped to assigned staff, status filter buttons.
+**Built:** `frontend/src/components/StatusBadge.jsx` (color-coded badge for each site status), `frontend/src/pages/StaffDashboard.jsx` (real Supabase query with status filter, table layout, filter buttons), `frontend/src/pages/SurveyScreen.jsx` (placeholder survey page with siteId param, back nav, status badge), updated `App.jsx` to add `/staff/survey/:siteId` route.
+**How it works:** StaffDashboard queries `sites` table ordered by created_at desc. Filter buttons update a `filter` state — when changed, re-fetches with `.eq('status', filter)` or all if 'all'. SurveyScreen reads `siteId` from URL params and fetches that single site.
+**Connects to:** SurveyScreen is the entry point for Step 5 (photo upload + rectangle + dimensions). StaffDashboard is the landing page after staff login.
+**Decisions made:** (1) Kept `OwnerDashboard` and `ClientPortal` as simple placeholders — they get real content in later steps. (2) SurveyScreen uses `useParams` to get siteId, so it works as a deep-link target from the site list.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
 ---
 ### 2026-07-08 — Supabase schema + RLS (Step 1)
 **Task:** Create all 6 tables (client_orgs → projects → sites → boards → estimates → profiles), apply RLS policies, apply demo cap trigger.

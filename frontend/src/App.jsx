@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
 import StaffDashboard from './pages/StaffDashboard'
 import SurveyScreen from './pages/SurveyScreen'
+import QuotePreview from './pages/QuotePreview'
 import OwnerDashboard from './pages/OwnerDashboard'
 import ClientPortal from './pages/ClientPortal'
 
@@ -46,6 +47,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['staff']}>
               <SurveyScreen />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/staff/quote/:boardId"
+          element={
+            <ProtectedRoute allowedRoles={['staff']}>
+              <QuotePreview />
             </ProtectedRoute>
           }
         />
