@@ -63,6 +63,16 @@ Keep log entries honest. If something is broken or incomplete, say so.
 **Status:** Done
 ---
 
+### 2026-07-08 — PDF Generation (Step 7)
+**Task:** Wire html2canvas + jsPDF for PDF generation in QuotePreview; upload to estimates-pdf bucket.
+**Built:** `frontend/src/lib/pdfGenerator.ts` (exports: htmlToCanvas, canvasToPdfBlob, generateEstimatePdf, uploadPdf), full rewrite of `QuotePreview.jsx` (rendered print layout, Download PDF button, auto-generate + upload on Send for Approval).
+**How it works:** QuotePreview renders a hidden-ish DOM node styled as a print layout (dark header, site name, board photo, spec card, price). "Download PDF" calls generateEstimatePdf which snapshots the node and triggers browser download. "Send for Approval" calls htmlToCanvas + canvasToPdfBlob to get a blob, uploads to estimates-pdf bucket via uploadPdf, saves URL to estimates.pdf_url, then sets status to pending_approval.
+**Connects to:** estimates-pdf storage bucket must exist with RLS policies for authenticated users. QuotePreview imports from pdfGenerator.ts. jsPDF v2 uses named export `import { jsPDF } from 'jspdf'`.
+**Decisions made:** (1) Refactored pdfGenerator.ts into small reusable functions — htmlToCanvas, canvasToPdfBlob (returns blob), generateEstimatePdf (downloads). (2) jsPDF v2 uses named { jsPDF } import, not default. (3) Added defensive estimate creation in QuotePreview if draft estimate doesn't exist (prevents crash when navigating directly to quote URL). (4) Added null check on estimate.id before sending for approval.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
 ---
 ### 2026-07-08 — Supabase schema + RLS (Step 1)
 **Task:** Create all 6 tables (client_orgs → projects → sites → boards → estimates → profiles), apply RLS policies, apply demo cap trigger.

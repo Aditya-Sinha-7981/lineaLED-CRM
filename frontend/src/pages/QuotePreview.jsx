@@ -43,6 +43,8 @@ export default function QuotePreview() {
       .from('estimates')
       .select('*')
       .eq('board_id', boardId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     if (estData) {
@@ -146,6 +148,26 @@ export default function QuotePreview() {
         {error && (
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
+
+        <div className="bg-white rounded-xl p-6 shadow-sm">
+          <h3 className="font-semibold text-gray-800 mb-3">Quote Amount</h3>
+          <p className="text-xs text-gray-400 mb-3">
+            Enter the quote amount manually — no automatic calculation is applied.
+          </p>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-gray-500 text-lg font-medium">₹</span>
+            <input
+              type="number"
+              value={manualPrice}
+              onChange={e => setManualPrice(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-lg max-w-xs"
+              placeholder="Enter amount"
+            />
+          </div>
+          <p className="text-xs text-gray-400">
+            Estimate ID: <span className="font-mono text-gray-500">{estimate?.id?.slice(0, 8).toUpperCase() || '—'}</span>
+          </p>
+        </div>
 
         <div className="flex gap-3 justify-end">
           <button

@@ -5,7 +5,9 @@ import StaffDashboard from './pages/StaffDashboard'
 import SurveyScreen from './pages/SurveyScreen'
 import QuotePreview from './pages/QuotePreview'
 import OwnerDashboard from './pages/OwnerDashboard'
+import ApprovalDetail from './pages/ApprovalDetail'
 import ClientPortal from './pages/ClientPortal'
+import ApprovalLanding from './pages/ApprovalLanding'
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { session, profile, loading } = useAuth()
@@ -67,6 +69,14 @@ function App() {
           }
         />
         <Route
+          path="/admin/approval/:estimateId"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <ApprovalDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/client"
           element={
             <ProtectedRoute allowedRoles={['client_user']}>
@@ -74,6 +84,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/approve/:token" element={<ApprovalLanding />} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
