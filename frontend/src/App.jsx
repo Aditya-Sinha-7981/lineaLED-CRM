@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Login from './pages/Login'
 import StaffDashboard from './pages/StaffDashboard'
+import SurveyScreen from './pages/SurveyScreen'
 import OwnerDashboard from './pages/OwnerDashboard'
 import ClientPortal from './pages/ClientPortal'
 
@@ -37,6 +38,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['staff']}>
               <StaffDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/staff/survey/:siteId"
+          element={
+            <ProtectedRoute allowedRoles={['staff']}>
+              <SurveyScreen />
             </ProtectedRoute>
           }
         />

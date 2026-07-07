@@ -20,10 +20,13 @@ export default function ClientPortal() {
           </button>
         </div>
       </header>
-      <main className="p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Project Progress</h2>
-        <p className="text-gray-500">Client portal will appear here.</p>
-        <div className="mt-6 bg-white rounded-xl p-6 shadow-sm">
+      <main className="p-6 max-w-5xl mx-auto">
+        <h2 className="text-xl font-semibold text-gray-800 mb-6">Your Project Progress</h2>
+        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+          <p className="text-gray-400">Progress rollup will appear here once sites exist.</p>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm">
+          <p className="text-sm text-gray-400 mb-2">Actions</p>
           <Link to="/login" className="text-orange-500 text-sm hover:underline">Sign in as different role</Link>
         </div>
       </main>

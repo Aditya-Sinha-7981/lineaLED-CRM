@@ -20,11 +20,27 @@ export default function OwnerDashboard() {
           </button>
         </div>
       </header>
-      <main className="p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Admin Dashboard</h2>
-        <p className="text-gray-500">Admin panel will appear here.</p>
-        <div className="mt-6 bg-white rounded-xl p-6 shadow-sm">
-          <Link to="/login" className="text-orange-500 text-sm hover:underline">Sign in as different role</Link>
+      <main className="p-6 max-w-5xl mx-auto">
+        <h2 className="text-xl font-semibold text-gray-800 mb-6">Overview</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <p className="text-sm text-gray-400">Pending Approval</p>
+            <p className="text-2xl font-bold text-gray-800 mt-1">—</p>
+          </div>
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <p className="text-sm text-gray-400">Total Sites</p>
+            <p className="text-2xl font-bold text-gray-800 mt-1">—</p>
+          </div>
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <p className="text-sm text-gray-400">Installed</p>
+            <p className="text-2xl font-bold text-gray-800 mt-1">—</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow-sm">
+          <p className="text-sm text-gray-400 mb-2">Quick links</p>
+          <div className="flex gap-4 flex-wrap">
+            <Link to="/login" className="text-orange-500 text-sm hover:underline">Sign in as different role</Link>
+          </div>
         </div>
       </main>
     </div>
