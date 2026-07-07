@@ -5,6 +5,7 @@ export function useAuth() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [profileError, setProfileError] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -23,6 +24,7 @@ export function useAuth() {
           await fetchProfile(session.user.id)
         } else {
           setProfile(null)
+          setProfileError(null)
           setLoading(false)
         }
       }
@@ -32,13 +34,17 @@ export function useAuth() {
   }, [])
 
   async function fetchProfile(userId) {
+    setProfileError(null)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single()
 
-    if (!error && data) {
+    if (error || !data) {
+      setProfile(null)
+      setProfileError('Your account exists but has no profile. Contact your administrator.')
+    } else {
       setProfile(data)
     }
     setLoading(false)
@@ -53,7 +59,8 @@ export function useAuth() {
     await supabase.auth.signOut()
     setSession(null)
     setProfile(null)
+    setProfileError(null)
   }
 
-  return { session, profile, loading, signIn, signOut }
+  return { session, profile, loading, profileError, signIn, signOut }
 }

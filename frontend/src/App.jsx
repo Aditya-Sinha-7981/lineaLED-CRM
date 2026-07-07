@@ -6,7 +6,9 @@ import SurveyScreen from './pages/SurveyScreen'
 import QuotePreview from './pages/QuotePreview'
 import OwnerDashboard from './pages/OwnerDashboard'
 import ApprovalDetail from './pages/ApprovalDetail'
+import ClientOrgSetup from './pages/ClientOrgSetup'
 import ClientPortal from './pages/ClientPortal'
+import BranchDetail from './pages/BranchDetail'
 import ApprovalLanding from './pages/ApprovalLanding'
 
 function ProtectedRoute({ children, allowedRoles }) {
@@ -69,6 +71,14 @@ function App() {
           }
         />
         <Route
+          path="/admin/setup"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <ClientOrgSetup />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/approval/:estimateId"
           element={
             <ProtectedRoute allowedRoles={['admin']}>
@@ -81,6 +91,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['client_user']}>
               <ClientPortal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/client/site/:siteId"
+          element={
+            <ProtectedRoute allowedRoles={['client_user']}>
+              <BranchDetail />
             </ProtectedRoute>
           }
         />

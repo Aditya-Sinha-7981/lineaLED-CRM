@@ -18,18 +18,17 @@ function htmlResponse(body, status = 200) {
 }
 
 const HTML_OK = (msg) => htmlResponse(`<!DOCTYPE html>
-<html<head><meta charset="UTF-8"><title>Quote Acknowledged</title>
+<html><head><meta charset="UTF-8"><title>Quote Acknowledged</title>
 <style>body{font-family:Arial,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center}
 .card{background:#fafafa;border:1px solid #e5e5e0;border-radius:12px;padding:32px}
-h1{color:#1a1a1a;font-size:22px;margin:0 0 16px}p{color:#555;font-size:15px;line-height:1.6;margin:0 0 24px}
-.btn{display:inline-block;background:#f90;color:#1a1a1a;font-weight:bold;padding:10px 24px;border-radius:8px;text-decoration:none}
-</style></head><body><div class="card"><h1>Quote Acknowledged</h1><p>${msg}</p><a href="/" class="btn">Return to portal</a></div></body></html>`)
+h1{color:#1a1a1a;font-size:22px;margin:0 0 16px}p{color:#555;font-size:15px;line-height:1.6;margin:0}
+</style></head><body><div class="card"><h1>Quote Acknowledged</h1><p>${msg}</p></div></body></html>`)
 
 const HTML_INVALID = () => htmlResponse(`<!DOCTYPE html>
-<html<head><meta charset="UTF-8"><title>Invalid Link</title>
+<html><head><meta charset="UTF-8"><title>Invalid Link</title>
 <style>body{font-family:Arial,sans-serif;max-width:500px;margin:60px auto;padding:20px;text-align:center}
 .card{background:#fafafa;border:1px solid #e5e5e0;border-radius:12px;padding:32px}
-h1{color:#1a1a1a;font-size:22px;margin:0 0 16px}p{color:#555;font-size:15px;line-height:1.6;margin:0 0 24px}
+h1{color:#1a1a1a;font-size:22px;margin:0 0 16px}p{color:#555;font-size:15px;line-height:1.6;margin:0}
 </style></head><body><div class="card"><h1>Link Invalid or Already Used</h1><p>This link has already been used or is no longer valid.</p></div></body></html>`)
 
 serve(async (req) => {
@@ -38,9 +37,10 @@ serve(async (req) => {
   }
 
   const url = new URL(req.url)
-  const token = url.pathname.split('/').pop()
+  const parts = url.pathname.split('/').filter(Boolean)
+  const token = parts[parts.length - 1]
 
-  if (!token) return HTML_INVALID()
+  if (!token || token === 'approve-token') return HTML_INVALID()
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -53,10 +53,15 @@ serve(async (req) => {
   if (error || !estimate) return HTML_INVALID()
   if (estimate.approval_token_used_at) return HTML_INVALID()
 
-  await supabase
+  const { data: updated, error: updateError } = await supabase
     .from('estimates')
     .update({ approval_token_used_at: new Date().toISOString() })
     .eq('id', estimate.id)
+    .is('approval_token_used_at', null)
+    .select('id')
+    .maybeSingle()
+
+  if (updateError || !updated) return HTML_INVALID()
 
   return HTML_OK('Thank you — your acknowledgment has been recorded.')
 })

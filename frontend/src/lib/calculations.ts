@@ -161,8 +161,12 @@ const GSB_MARGIN         = 3.0
 const GSB_MODULES_PER_SQFT = 3
 const GSB_SMPS_LOAD      = 0.70
 
-function toInches(val, unit) {
+export function toInches(val, unit) {
   return unit === 'ft' ? val * 12 : val
+}
+
+export function toFeet(val, unit) {
+  return unit === 'in' ? val / 12 : val
 }
 
 export function calculateGsbSignageSpec({ widthFt, heightFt, widthUnit = 'ft', heightUnit = 'ft' }) {

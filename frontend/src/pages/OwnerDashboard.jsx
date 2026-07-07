@@ -1,31 +1,34 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import StatusBadge from '../components/StatusBadge'
 
 export default function OwnerDashboard() {
-  const navigate = useNavigate()
   const [pendingEstimates, setPendingEstimates] = useState([])
+  const [installedCount, setInstalledCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchPending()
+    fetchData()
   }, [])
 
-  async function fetchPending() {
+  async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
-      .from('estimates')
-      .select('*, boards(*, sites(name, address))')
-      .eq('status', 'pending_approval')
-      .order('created_at', { ascending: false })
+    const [{ data: pending }, { count }] = await Promise.all([
+      supabase
+        .from('estimates')
+        .select('*, boards(*, sites(name, address))')
+        .eq('status', 'pending_approval')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('sites')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'installed'),
+    ])
 
-    if (data) setPendingEstimates(data)
+    if (pending) setPendingEstimates(pending)
+    setInstalledCount(count || 0)
     setLoading(false)
-  }
-
-  async function handleSignOut() {
-    await supabase.auth.signOut()
   }
 
   return (
@@ -34,7 +37,7 @@ export default function OwnerDashboard() {
         <h1 className="text-lg font-bold">Admin Dashboard</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-400">Admin</span>
-          <button onClick={handleSignOut} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
+          <button onClick={() => supabase.auth.signOut()} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
             Sign Out
           </button>
         </div>
@@ -94,12 +97,15 @@ export default function OwnerDashboard() {
             <p className="text-2xl font-bold text-yellow-600 mt-1">{pendingEstimates.length}</p>
           </div>
           <div className="bg-white rounded-xl p-6 shadow-sm">
-            <p className="text-sm text-gray-400">Total Sites</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">—</p>
+            <p className="text-sm text-gray-400 mb-2">Quick links</p>
+            <div className="flex gap-4 flex-wrap">
+              <Link to="/admin/setup" className="text-orange-500 text-sm hover:underline">Setup (Orgs / Users / Sites)</Link>
+              <Link to="/login" className="text-orange-500 text-sm hover:underline">Sign in as different role</Link>
+            </div>
           </div>
           <div className="bg-white rounded-xl p-6 shadow-sm">
             <p className="text-sm text-gray-400">Installed</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">—</p>
+            <p className="text-2xl font-bold text-gray-800 mt-1">{installedCount}</p>
           </div>
         </div>
       </main>

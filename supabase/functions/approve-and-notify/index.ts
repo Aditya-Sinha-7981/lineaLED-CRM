@@ -72,54 +72,38 @@ serve(async (req) => {
     return jsonResponse({ error: 'Estimate not found' }, 404)
   }
 
+  if (estimate.status !== 'pending_approval') {
+    return jsonResponse({ error: 'Estimate is not pending approval' }, 400)
+  }
+
   const site = estimate.boards?.sites
   const clientOrg = site?.projects?.client_orgs
+  const previousSiteStatus = site?.status || 'quoted'
 
   if (!site || !clientOrg) {
     return jsonResponse({ error: 'Estimate not found' }, 404)
   }
 
-  const { data: clientProfile } = await supabase
+  const { data: clientProfiles, error: clientProfilesError } = await supabase
     .from('profiles')
     .select('user_id')
     .eq('role', 'client_user')
     .eq('client_org_id', clientOrg.id)
-    .single()
+    .limit(1)
 
-  if (!clientProfile) {
-    return jsonResponse({ error: 'Estimate not found' }, 404)
+  const clientProfile = clientProfiles?.[0]
+  if (clientProfilesError || !clientProfile) {
+    return jsonResponse({ error: 'No client user found for this organization' }, 404)
   }
 
   const { data: authUser, error: authUserError } = await supabase.auth.admin.getUserById(clientProfile.user_id)
 
   if (authUserError || !authUser?.user?.email) {
-    return jsonResponse({ error: 'Estimate not found' }, 404)
+    return jsonResponse({ error: 'Client user email not found' }, 404)
   }
 
   const clientEmail = authUser.user.email
-
   const approvalToken = crypto.randomUUID()
-
-  const { error: updateError } = await supabase
-    .from('estimates')
-    .update({
-      status: 'approved',
-      approval_token: approvalToken,
-    })
-    .eq('id', estimateId)
-
-  if (updateError) {
-    return jsonResponse({ error: 'Failed to update estimate' }, 500)
-  }
-
-  const { error: siteUpdateError } = await supabase
-    .from('sites')
-    .update({ status: 'approved' })
-    .eq('id', site.id)
-
-  if (siteUpdateError) {
-    return jsonResponse({ error: 'Failed to update site' }, 500)
-  }
 
   const approveUrl = `${FRONTEND_URL}/approve/${approvalToken}`
 
@@ -161,6 +145,35 @@ serve(async (req) => {
     const errText = await resendRes.text()
     console.error('Resend error:', errText)
     return jsonResponse({ error: 'Email failed to send' }, 500)
+  }
+
+  const { error: updateError } = await supabase
+    .from('estimates')
+    .update({
+      status: 'approved',
+      approval_token: approvalToken,
+    })
+    .eq('id', estimateId)
+
+  if (updateError) {
+    return jsonResponse({ error: 'Failed to update estimate' }, 500)
+  }
+
+  const { error: siteUpdateError } = await supabase
+    .from('sites')
+    .update({ status: 'approved' })
+    .eq('id', site.id)
+
+  if (siteUpdateError) {
+    await supabase
+      .from('estimates')
+      .update({ status: 'pending_approval', approval_token: null })
+      .eq('id', estimateId)
+    await supabase
+      .from('sites')
+      .update({ status: previousSiteStatus })
+      .eq('id', site.id)
+    return jsonResponse({ error: 'Failed to update site' }, 500)
   }
 
   return jsonResponse({ success: true, approval_token: approvalToken })

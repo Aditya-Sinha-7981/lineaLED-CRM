@@ -2,7 +2,7 @@
 // Run: node --experimental-vm-modules test-calc.js  (or just open in browser)
 // Or: npx tsx test-calc.js
 
-import { calculateVideoWallSpec, calculateGsbSignageSpec } from './lib/calculations.ts'
+import { calculateVideoWallSpec, calculateGsbSignageSpec } from './src/lib/calculations.ts'
 
 function assert(label, actual, expected) {
   const pass = JSON.stringify(actual) === JSON.stringify(expected)

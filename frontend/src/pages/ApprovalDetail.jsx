@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import SpecCard from '../components/SpecCard'
-
-const EDGE_BASE = import.meta.env.VITE_SUPABASE_URL + '/functions/v1'
+import AnnotatedPhoto from '../components/AnnotatedPhoto'
+import { approveAndNotifyUrl } from '../lib/edgeFunctions'
 
 export default function ApprovalDetail() {
   const { estimateId } = useParams()
@@ -46,7 +46,7 @@ export default function ApprovalDetail() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
-      const res = await fetch(`${EDGE_BASE}/approve-and-notify`, {
+      const res = await fetch(approveAndNotifyUrl(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,16 +69,22 @@ export default function ApprovalDetail() {
   }
 
   async function handleNeedsRevision() {
+    if (sending) return
     setSending(true)
     setError('')
     try {
-      await supabase
+      const { error: estErr } = await supabase
         .from('estimates')
         .update({ status: 'needs_revision' })
         .eq('id', estimateId)
+      if (estErr) throw estErr
 
       if (site) {
-        await supabase.from('sites').update({ status: 'needs_revision' }).eq('id', site.id)
+        const { error: siteErr } = await supabase
+          .from('sites')
+          .update({ status: 'needs_revision' })
+          .eq('id', site.id)
+        if (siteErr) throw siteErr
       }
 
       navigate('/admin')
@@ -108,6 +114,8 @@ export default function ApprovalDetail() {
     ? parseFloat(estimate.manual_price).toLocaleString('en-IN')
     : null
 
+  const alreadyApproved = estimate.status === 'approved'
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
@@ -129,9 +137,16 @@ export default function ApprovalDetail() {
 
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-              Pending Approval
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+              alreadyApproved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+            }`}>
+              {alreadyApproved ? 'Approved' : 'Pending Approval'}
             </span>
+            {estimate.approval_token_used_at && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                Client Acknowledged
+              </span>
+            )}
           </div>
           <h2 className="text-xl font-bold text-gray-900 mt-2">{site?.name || 'Unknown Site'}</h2>
           <p className="text-gray-500 text-sm mt-1">{site?.address || ''} — {clientOrg?.name || ''}</p>
@@ -139,12 +154,7 @@ export default function ApprovalDetail() {
 
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-3">Board Photo</h3>
-          <img
-            src={board?.photo_url}
-            alt="Board"
-            className="max-w-full max-h-64 object-contain rounded-lg border"
-            crossOrigin="anonymous"
-          />
+          <AnnotatedPhoto photoUrl={board?.photo_url} annotation={board?.annotation} />
           <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
             <div>
               <p className="text-gray-400">Type</p>
@@ -159,32 +169,44 @@ export default function ApprovalDetail() {
               <p className="font-medium text-orange-600">{price ? `₹${price}` : '—'}</p>
             </div>
           </div>
+          {estimate.pdf_url && (
+            <a
+              href={estimate.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-4 text-sm text-orange-500 hover:underline"
+            >
+              View PDF Quote →
+            </a>
+          )}
         </div>
 
         <SpecCard spec={board?.spec} boardType={board?.board_type} />
 
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-gray-800 mb-3">Approval Action</h3>
-          <p className="text-sm text-gray-400 mb-4">
-            Clicking "Approve &amp; Send" will mark this quote as approved and send an acknowledgment email to the client.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={handleApproveSend}
-              disabled={sending}
-              className="flex-1 bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 py-3 rounded-xl text-sm font-semibold"
-            >
-              {sending ? 'Sending…' : 'Approve & Send'}
-            </button>
-            <button
-              onClick={handleNeedsRevision}
-              disabled={sending}
-              className="px-6 bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 py-3 rounded-xl text-sm"
-            >
-              Needs Revision
-            </button>
+        {!alreadyApproved && (
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <h3 className="font-semibold text-gray-800 mb-3">Approval Action</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              "Approve &amp; Send" sends an acknowledgment email to the client, then marks the quote and site as approved.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleApproveSend}
+                disabled={sending}
+                className="flex-1 bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 py-3 rounded-xl text-sm font-semibold"
+              >
+                {sending ? 'Sending…' : 'Approve & Send'}
+              </button>
+              <button
+                onClick={handleNeedsRevision}
+                disabled={sending}
+                className="px-6 bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 py-3 rounded-xl text-sm"
+              >
+                Needs Revision
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   )

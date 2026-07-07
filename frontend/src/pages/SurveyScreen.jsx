@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { calculateVideoWallSpec, calculateGsbSignageSpec, MS, CD } from '../lib/calculations'
+import { calculateVideoWallSpec, calculateGsbSignageSpec, MS, CD, toFeet } from '../lib/calculations'
 import StatusBadge from '../components/StatusBadge'
 import PhotoAnnotator from '../components/PhotoAnnotator'
 import SpecCard from '../components/SpecCard'
@@ -117,7 +117,9 @@ export default function SurveyScreen() {
     let result
     if (boardType === 'video_wall') {
       if (!environment || !pixelPitch || !cabinetType) return
-      result = calculateVideoWallSpec({ environment, pixelPitch, widthFt: w, heightFt: h, cabinetType })
+      const wFt = toFeet(w, widthUnit)
+      const hFt = toFeet(h, heightUnit)
+      result = calculateVideoWallSpec({ environment, pixelPitch, widthFt: wFt, heightFt: hFt, cabinetType })
       result._env = environment
       result._pitch = pixelPitch
       result._cab = cabinetType
@@ -157,13 +159,16 @@ export default function SurveyScreen() {
         finalPhotoUrl = urlData.publicUrl
       }
 
+      const storedWidthFt = boardType === 'video_wall' ? toFeet(parseFloat(widthFt), widthUnit) : parseFloat(widthFt)
+      const storedHeightFt = boardType === 'video_wall' ? toFeet(parseFloat(heightFt), heightUnit) : parseFloat(heightFt)
+
       const boardPayload = {
         site_id: siteId,
         board_type: boardType,
         photo_url: finalPhotoUrl,
         annotation,
-        width_ft: parseFloat(widthFt),
-        height_ft: parseFloat(heightFt),
+        width_ft: storedWidthFt,
+        height_ft: storedHeightFt,
         spec,
       }
 
@@ -187,14 +192,31 @@ export default function SurveyScreen() {
         board = data
       }
 
-      const { error: estimateError } = await supabase
+      const { data: existingEstimate } = await supabase
         .from('estimates')
-        .insert({
-          board_id: board.id,
-          spec_snapshot: spec,
-          status: 'draft',
-        })
-      if (estimateError) throw new Error(`estimates insert: ${estimateError.message}`)
+        .select('id, status')
+        .eq('board_id', board.id)
+        .in('status', ['draft', 'needs_revision'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingEstimate) {
+        const { error: estimateError } = await supabase
+          .from('estimates')
+          .update({ spec_snapshot: spec, status: 'draft' })
+          .eq('id', existingEstimate.id)
+        if (estimateError) throw new Error(`estimates update: ${estimateError.message}`)
+      } else {
+        const { error: estimateError } = await supabase
+          .from('estimates')
+          .insert({
+            board_id: board.id,
+            spec_snapshot: spec,
+            status: 'draft',
+          })
+        if (estimateError) throw new Error(`estimates insert: ${estimateError.message}`)
+      }
 
       const { error: siteUpdateError } = await supabase
         .from('sites')
@@ -246,6 +268,11 @@ export default function SurveyScreen() {
       </header>
 
       <main className="p-6 max-w-3xl mx-auto space-y-6">
+        {site.status === 'needs_revision' && (
+          <div className="bg-yellow-50 text-yellow-800 px-4 py-3 rounded-lg text-sm border border-yellow-200">
+            Admin requested revisions. Update the survey and resubmit the quote.
+          </div>
+        )}
         {error && (
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>
         )}

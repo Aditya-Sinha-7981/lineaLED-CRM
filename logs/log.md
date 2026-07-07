@@ -68,7 +68,17 @@ Keep log entries honest. If something is broken or incomplete, say so.
 **Built:** `frontend/src/lib/pdfGenerator.ts` (exports: htmlToCanvas, canvasToPdfBlob, generateEstimatePdf, uploadPdf), full rewrite of `QuotePreview.jsx` (rendered print layout, Download PDF button, auto-generate + upload on Send for Approval).
 **How it works:** QuotePreview renders a hidden-ish DOM node styled as a print layout (dark header, site name, board photo, spec card, price). "Download PDF" calls generateEstimatePdf which snapshots the node and triggers browser download. "Send for Approval" calls htmlToCanvas + canvasToPdfBlob to get a blob, uploads to estimates-pdf bucket via uploadPdf, saves URL to estimates.pdf_url, then sets status to pending_approval.
 **Connects to:** estimates-pdf storage bucket must exist with RLS policies for authenticated users. QuotePreview imports from pdfGenerator.ts. jsPDF v2 uses named export `import { jsPDF } from 'jspdf'`.
-**Decisions made:** (1) Refactored pdfGenerator.ts into small reusable functions — htmlToCanvas, canvasToPdfBlob (returns blob), generateEstimatePdf (downloads). (2) jsPDF v2 uses named { jsPDF } import, not default. (3) Added defensive estimate creation in QuotePreview if draft estimate doesn't exist (prevents crash when navigating directly to quote URL). (4) Added null check on estimate.id before sending for approval.
+**Decisions made:** (1) Refactored pdfGenerator.ts into small reusable functions — htmlToCanvas, canvasToPdfBlob (returns blob), generateEstimatePdf (downloads). (2) jsPDF v2 uses named { jsPDF } import, not default. (3) Added defensive estimate creation in QuotePreview if draft estimate doesn't exist (prevents crash when navigating directly to quote URL). (4) Added null check on estimate.id before sending for approval. (5) Added explicit price input field to QuotePreview above action buttons — price was being saved but had no visible editable field.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
+### 2026-07-08 — approve-and-notify + approve-token Edge Functions (Steps 8 & 9)
+**Task:** Build two Edge Functions: approve-and-notify (admin approves → sets status + sends email) and approve-token (client clicks email link → acknowledges one-time).
+**Built:** `supabase/functions/approve-and-notify/index.ts` (CORS-enabled, verifies admin JWT, walks estimate→board→site→project→client_org chain, finds client_user profile, uses admin.getUserById for email dynamically, generates UUID token, updates both estimates and sites, sends via Resend API), `supabase/functions/approve-token/index.ts` (public, no auth, reads token from URL path, checks approval_token_used_at, sets it on first use, returns inline HTML), `frontend/src/pages/ApprovalDetail.jsx` (admin review + Approve & Send / Needs Revision buttons), `frontend/src/pages/ApprovalLanding.jsx` (public page reading HTML response text to determine ok/invalid).
+**How it works:** approve-and-notify is a POST with JWT auth. It resolves the client's email dynamically from the org — no hardcoded addresses. approve-token is a GET with no auth — reads its own HTML response text to determine which page to show on the client. Both have CORS headers for localhost dev.
+**Connects to:** ApprovalDetail → OwnerDashboard. ApprovalLanding → email link from approve-and-notify. Client email resolved via profiles + auth.admin.getUserById.
+**Decisions made:** (1) Reverted approve-token to inline HTML response (no redirect) — simpler, avoids CORS preflight loop issues. (2) CORS headers use 204 for OPTIONS, 303 redirect had preflight issues in dev. (3) Reverted ApprovalLanding to read HTML text from response body to determine ok vs invalid state. (4) Added sending guard in ApprovalDetail to prevent double-fire on React StrictMode.
 **Deviations from MD:** None.
 **Status:** Done
 ---
@@ -82,4 +92,68 @@ Keep log entries honest. If something is broken or incomplete, say so.
 **Decisions made:** (1) Used generic error message "Demo limit reached." instead of lineaLED branding per user request. (2) Cabinet/module lookup uses MS, DC, CD objects (NOT CT) for sizing; CT is only for controller recommendation. (3) Did not force-test RLS cross-org isolation with fake UUIDs since only one demo org exists — will verify naturally through frontend auth.
 **Deviations from MD:** None significant. Cabinet lookup clarification (MS/DC/CD vs. CT) confirmed by user as correct interpretation.
 **Status:** Done
+---
+
+---
+### 2026-07-08 — Bug fixes + Admin Setup refinement
+**Task:** Fix bugs across existing flows (especially admin org/user setup), refine what we have into a stable product without building Steps 10–13 new features. Update log with detailed description.
+**Built:**
+- `frontend/src/pages/ClientOrgSetup.jsx` — major rewrite: session-safe user creation, org/project rename & delete, staff picker for site assignment, CSV import moved here from staff dashboard
+- `frontend/src/lib/edgeFunctions.js` — shared Supabase edge function URL helpers
+- `frontend/src/components/AnnotatedPhoto.jsx` — photo with annotation rectangle overlay (used in PDF + approval views)
+- `frontend/src/pages/StaffDashboard.jsx` — scoped to `assigned_staff_id`, smarter action links (Survey / View Quote / Revise), CSV import removed
+- `frontend/src/pages/SurveyScreen.jsx` — video wall inch→ft conversion, update existing draft estimate instead of duplicate insert, needs_revision banner
+- `frontend/src/pages/QuotePreview.jsx` — annotation overlay on PDF layout, freeze spec_snapshot on send, pending-approval guard
+- `frontend/src/pages/ApprovalLanding.jsx` — uses full `VITE_SUPABASE_URL` (fixes broken prod/dev approval links)
+- `frontend/src/pages/ApprovalDetail.jsx` — PDF link, acknowledgment badge, sending guards, AnnotatedPhoto
+- `frontend/src/pages/OwnerDashboard.jsx` — real installed count, layout fix
+- `frontend/src/pages/Login.jsx` — shows profile-missing error clearly
+- `frontend/src/hooks/useAuth.js` — `profileError` state when profile row missing
+- `frontend/src/lib/calculations.ts` — exported `toFeet()` helper
+- `frontend/vite.config.js` — proxy reads `VITE_SUPABASE_URL` from env
+- `supabase/functions/approve-and-notify/index.ts` — email sent **before** DB update; rollback on site update failure; `pending_approval` guard
+- `supabase/functions/approve-token/index.ts` — fixed HTML, conditional update prevents race/double-use
+- `docs/FLOW_TESTS.md` — manual end-to-end test checklist for all current flows
+- Deleted `frontend/src/hooks/useRoleRedirect.js` (unused dead code)
+
+**How it works:** The admin Setup page now creates users without kicking the admin out: after `signUp`, the admin session is immediately restored via `setSession`, then the profile row is inserted. Duplicate emails are caught via empty `identities` array (the root cause of the `profiles_user_id_fkey` error in the screenshot — Supabase returns a fake user ID for already-registered emails). Staff only see sites assigned to them. Re-surveying updates the existing draft estimate instead of creating duplicates. Approval emails only flip DB status after Resend succeeds.
+
+**Connects to:** All three role dashboards, both edge functions, CSV import modal, survey→quote→approval→client acknowledgment loop. Edge functions must be redeployed for atomic approval fix to take effect.
+
+**Decisions made:**
+1. User creation stays client-side via `signUp` + session restore (no new edge function) — sufficient for demo if emails are unique
+2. CSV import moved from Staff to Admin Setup (per API contract) but component unchanged
+3. Org/project delete is safe-delete only (blocks if children exist) — no cascade deletes
+4. `approve-and-notify` sends email first, then updates DB — if email fails, nothing is approved (contract-compliant)
+5. AnnotatedPhoto component shared between QuotePreview and ApprovalDetail
+
+**Deviations from MD:** Admin Setup page (org/user management UI) was never in CORE.md — built as demo infrastructure by prior agent; this session refined it rather than removed it. Delete on orgs/projects is extra CRUD not in API contract but needed for demo hygiene.
+
+**Status:** Done — frontend builds clean (`npm run build`). Edge functions need redeploy. Install flow (Step 12) intentionally not built per user request.
+
+---
+
+## Future Features Plan (for complete end-to-end product)
+
+| Priority | Feature | Why |
+|----------|---------|-----|
+| P0 | **Install flow** (`InstallScreen`, `install-photos` bucket, `final_photo_url`, status → `installed`) | Closes the survey→install loop; demo script step 7 |
+| P0 | **SQL migrations in repo** | Reproducible deploys, reviewable RLS |
+| P1 | **Admin invite edge function** | Replace client-side `signUp` — no session hijack risk, handles existing emails cleanly |
+| P1 | **Storage bucket policies in repo** | `site-photos`, `install-photos`, `estimates-pdf` with org-scoped read |
+| P1 | **Client portal PDF download** | Clients can view their quote PDF |
+| P2 | **Realtime subscriptions** | Live progress rollup without manual refresh |
+| P2 | **Multi-project support** | Client portal project picker when org has >1 project |
+| P2 | **PhotoAnnotator touch + resize** | Mobile field survey reliability |
+| P3 | **Seed script** | One-command demo data for rehearsal |
+| P3 | **`config.toml`** | `verify_jwt = false` for approve-token documented in repo |
+
+---
+
+## Handoff for next sessions
+
+See **`logs/HANDOFF.md`** — full bug list, visibility model (org vs project vs site), deploy checklist, and copy-paste prompts for:
+1. Steps 10–13 agent (client portal, install flow, demo rehearsal)
+2. Final finishing touches agent (calc engines, migrations, polish)
+
 ---

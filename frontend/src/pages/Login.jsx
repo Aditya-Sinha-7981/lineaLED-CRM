@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 export default function Login() {
-  const { session, profile, loading, signIn } = useAuth()
+  const { session, profile, loading, profileError, signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -23,7 +23,7 @@ export default function Login() {
           navigate('/client', { replace: true })
           break
         default:
-          navigate('/login', { replace: true })
+          break
       }
     }
   }, [session, profile, loading, navigate])
@@ -40,6 +40,8 @@ export default function Login() {
       setSubmitting(false)
     }
   }
+
+  const displayError = error || (!loading && session && profileError ? profileError : '')
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -78,9 +80,9 @@ export default function Login() {
             />
           </div>
 
-          {error && (
+          {displayError && (
             <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded-lg">
-              {error}
+              {displayError}
             </div>
           )}
 

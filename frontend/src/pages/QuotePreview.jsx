@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import SpecCard from '../components/SpecCard'
+import AnnotatedPhoto from '../components/AnnotatedPhoto'
 import { generateEstimatePdf, uploadPdf, htmlToCanvas, canvasToPdfBlob } from '../lib/pdfGenerator'
 
 export default function QuotePreview() {
@@ -55,6 +56,14 @@ export default function QuotePreview() {
     setLoading(false)
   }
 
+  async function savePriceIfNeeded(estId) {
+    if (!manualPrice) return
+    await supabase
+      .from('estimates')
+      .update({ manual_price: parseFloat(manualPrice) })
+      .eq('id', estId)
+  }
+
   async function handleGeneratePdf() {
     if (!printRef.current) return
     setGenerating(true)
@@ -71,6 +80,10 @@ export default function QuotePreview() {
   }
 
   async function handleSendForApproval() {
+    if (estimate?.status === 'pending_approval') {
+      setError('This quote is already pending approval.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -87,6 +100,8 @@ export default function QuotePreview() {
         setEstimate(est)
       }
 
+      await savePriceIfNeeded(est.id)
+
       if (!pdfUrl && printRef.current) {
         const canvas = await htmlToCanvas(printRef.current)
         const blob = canvasToPdfBlob(canvas)
@@ -100,6 +115,7 @@ export default function QuotePreview() {
         .update({
           status: 'pending_approval',
           manual_price: manualPrice ? parseFloat(manualPrice) : null,
+          spec_snapshot: board.spec || {},
         })
         .eq('id', est.id)
 
@@ -129,6 +145,7 @@ export default function QuotePreview() {
   }
 
   const price = manualPrice ? parseFloat(manualPrice).toLocaleString('en-IN') : null
+  const isPending = estimate?.status === 'pending_approval'
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -149,6 +166,12 @@ export default function QuotePreview() {
           <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">{error}</div>
         )}
 
+        {isPending && (
+          <div className="bg-yellow-50 text-yellow-800 px-4 py-3 rounded-lg text-sm border border-yellow-200">
+            This quote is pending admin approval.
+          </div>
+        )}
+
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-3">Quote Amount</h3>
           <p className="text-xs text-gray-400 mb-3">
@@ -160,7 +183,8 @@ export default function QuotePreview() {
               type="number"
               value={manualPrice}
               onChange={e => setManualPrice(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-lg max-w-xs"
+              disabled={isPending}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-lg max-w-xs disabled:bg-gray-50"
               placeholder="Enter amount"
             />
           </div>
@@ -177,13 +201,15 @@ export default function QuotePreview() {
           >
             {generating ? 'Generating…' : 'Download PDF'}
           </button>
-          <button
-            onClick={handleSendForApproval}
-            disabled={saving}
-            className="bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 px-4 py-2 rounded-lg text-sm font-medium"
-          >
-            {saving ? 'Sending…' : 'Send for Approval'}
-          </button>
+          {!isPending && (
+            <button
+              onClick={handleSendForApproval}
+              disabled={saving}
+              className="bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300 px-4 py-2 rounded-lg text-sm font-medium"
+            >
+              {saving ? 'Sending…' : 'Send for Approval'}
+            </button>
+          )}
         </div>
 
         <div ref={printRef} className="bg-white rounded-xl shadow-sm overflow-hidden" style={{ width: 1100 }}>
@@ -206,11 +232,9 @@ export default function QuotePreview() {
 
             <div className="grid grid-cols-3 gap-6 mb-6">
               <div className="col-span-2">
-                <img
-                  src={board.photo_url}
-                  alt="Board"
-                  className="max-w-full max-h-64 object-contain rounded-lg border"
-                  crossOrigin="anonymous"
+                <AnnotatedPhoto
+                  photoUrl={board.photo_url}
+                  annotation={board.annotation}
                 />
               </div>
               <div className="text-sm">

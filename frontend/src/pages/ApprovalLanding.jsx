@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { approveTokenUrl } from '../lib/edgeFunctions'
 
 export default function ApprovalLanding() {
   const [status, setStatus] = useState('loading')
@@ -11,9 +12,7 @@ export default function ApprovalLanding() {
       return
     }
 
-    fetch(`/functions/v1/approve-token/${token}`, {
-      method: 'GET',
-    })
+    fetch(approveTokenUrl(token), { method: 'GET' })
       .then(res => res.text())
       .then(html => {
         if (html.includes('Quote Acknowledged')) {
