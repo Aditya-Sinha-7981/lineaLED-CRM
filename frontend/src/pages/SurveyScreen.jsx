@@ -228,6 +228,14 @@ export default function SurveyScreen() {
         if (boardError) throw new Error(`boards update: ${boardError.message}`)
         board = data
       } else {
+        console.log('Board payload:', boardPayload)
+        const { data: { user } } = await supabase.auth.getUser()
+        console.log('Current auth user:', user)
+        const { data: debugData, error: debugError } = await supabase.rpc('debug_board_insert')
+        console.log('=== DEBUG BOARD INSERT ===')
+        console.log(debugData)
+        console.log(debugError)
+        console.log('==========================')
         const { data, error: boardError } = await supabase
           .from('boards')
           .insert(boardPayload)
