@@ -2,10 +2,26 @@ import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { supabase } from './supabaseClient'
 
+function waitForImages(doc) {
+  const images = doc.querySelectorAll('img')
+  return Promise.all(
+    Array.from(images).map(img => {
+      if (img.complete) return Promise.resolve()
+      return new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = resolve
+        setTimeout(resolve, 3000)
+      })
+    })
+  )
+}
+
 export async function htmlToCanvas(element) {
+  await waitForImages(element)
   return html2canvas(element, {
     scale: 2,
     useCORS: true,
+    allowTaint: false,
     backgroundColor: '#ffffff',
   })
 }
@@ -31,9 +47,12 @@ export async function uploadPdf(blob, estimateId) {
 
   if (error) throw error
 
-  const { data } = supabase.storage
+  const { data: signed, error: signError } = await supabase.storage
     .from('estimates-pdf')
-    .getPublicUrl(path)
+    .createSignedUrl(path, 60 * 60 * 24 * 365)
 
+  if (!signError && signed?.signedUrl) return signed.signedUrl
+
+  const { data } = supabase.storage.from('estimates-pdf').getPublicUrl(path)
   return data.publicUrl
 }

@@ -1,13 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import PageLayout from '../components/PageLayout'
+import EmptyState from '../components/EmptyState'
 import ProgressRollup from '../components/ProgressRollup'
 import StatusBadge from '../components/StatusBadge'
+
+const STATUS_OPTIONS = ['all', 'not_surveyed', 'quoted', 'needs_revision', 'approved', 'installed']
 
 export default function ClientPortal() {
   const [projects, setProjects] = useState([])
   const [sites, setSites] = useState([])
   const [projectFilter, setProjectFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -49,72 +55,105 @@ export default function ClientPortal() {
     setLoading(false)
   }
 
-  const filteredSites = projectFilter === 'all'
-    ? sites
-    : sites.filter(s => s.project_id === projectFilter)
+  const filteredSites = useMemo(() => {
+    let list = sites
+    if (projectFilter !== 'all') list = list.filter(s => s.project_id === projectFilter)
+    if (statusFilter !== 'all') list = list.filter(s => s.status === statusFilter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        (s.address || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [sites, projectFilter, statusFilter, search])
 
-  const installed = filteredSites.filter(s => s.status === 'installed').length
-  const total = filteredSites.length
+  const rollupSites = projectFilter === 'all' ? sites : sites.filter(s => s.project_id === projectFilter)
+  const installed = rollupSites.filter(s => s.status === 'installed').length
+  const total = rollupSites.length
   const activeProject = projects.find(p => p.id === projectFilter)
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Loading…</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold">Client Portal</h1>
-          <p className="text-sm text-gray-400">
-            {projectFilter === 'all' ? 'All projects' : activeProject?.name}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-400">Client</span>
-          <button onClick={() => supabase.auth.signOut()} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
-            Sign Out
-          </button>
-        </div>
-      </header>
-
-      <main className="p-6 max-w-5xl mx-auto space-y-6">
-        {projects.length > 1 && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by project</label>
-            <select
-              value={projectFilter}
-              onChange={e => setProjectFilter(e.target.value)}
-              className="w-full md:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            >
-              <option value="all">All projects ({sites.length} branches)</option>
-              {projects.map(p => {
-                const count = sites.filter(s => s.project_id === p.id).length
-                return (
-                  <option key={p.id} value={p.id}>{p.name} ({count} branches)</option>
-                )
-              })}
-            </select>
+    <PageLayout
+      title="Client Portal"
+      subtitle={projectFilter === 'all' ? 'All projects' : activeProject?.name}
+      role="Client"
+    >
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="md:col-span-1">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Search branches</label>
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Name or address…"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            {projects.length > 1 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Project</label>
+                <select
+                  value={projectFilter}
+                  onChange={e => setProjectFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="all">All projects ({sites.length})</option>
+                  {projects.map(p => {
+                    const count = sites.filter(s => s.project_id === p.id).length
+                    return <option key={p.id} value={p.id}>{p.name} ({count})</option>
+                  })}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm capitalize"
+              >
+                {STATUS_OPTIONS.map(s => (
+                  <option key={s} value={s}>{s === 'all' ? 'All statuses' : s.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        )}
+        </div>
 
         <ProgressRollup installed={installed} total={total} />
 
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">All Branches</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Branches</h2>
+            <span className="text-sm text-gray-400">{filteredSites.length} shown</span>
+          </div>
+
           {filteredSites.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center shadow-sm">
-              <p className="text-gray-400">No branches found.</p>
-            </div>
+            <EmptyState
+              icon="🏢"
+              title={sites.length === 0 ? 'No branches yet' : 'No matches'}
+              description={
+                sites.length === 0
+                  ? 'Branches will appear here once your admin imports them.'
+                  : 'Try a different search or filter.'
+              }
+            />
           ) : (
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100">
+                  <tr className="border-b border-gray-100 bg-gray-50">
                     <th className="text-left px-4 py-3 font-medium text-gray-500">Branch</th>
                     {projectFilter === 'all' && projects.length > 1 && (
                       <th className="text-left px-4 py-3 font-medium text-gray-500 hidden md:table-cell">Project</th>
@@ -147,7 +186,7 @@ export default function ClientPortal() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </PageLayout>
   )
 }

@@ -7,6 +7,8 @@ export default function CsvImportModal({ projectId, onClose, onSuccess }) {
   const [errors, setErrors] = useState([])
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
+  const [totalRows, setTotalRows] = useState(0)
+  const [skippedCount, setSkippedCount] = useState(0)
   const fileRef = useRef(null)
 
   function handleFile(e) {
@@ -22,9 +24,13 @@ export default function CsvImportModal({ projectId, onClose, onSuccess }) {
           address: r.address?.trim() || '',
           original: r,
         }))
-        const errs = parsed.filter(r => !r.name).map(r => `Line ${r.line}: name is required`)
-        setErrors(errs)
-        setRows(parsed.filter(r => r.name))
+        const total = parsed.length
+        const valid = parsed.filter(r => r.name)
+        const skipped = total - valid.length
+        setTotalRows(total)
+        setSkippedCount(skipped)
+        setErrors(valid.length === 0 && total > 0 ? ['No valid rows found. Each row must have a name.'] : [])
+        setRows(valid)
       },
       error: (err) => setErrors([err.message]),
     })
@@ -70,7 +76,10 @@ export default function CsvImportModal({ projectId, onClose, onSuccess }) {
 
           {rows.length > 0 && (
             <div>
-              <p className="text-sm text-gray-500 mb-2">{rows.length} rows ready to import</p>
+              <p className="text-sm text-gray-500 mb-2">
+                {rows.length} row{rows.length !== 1 ? 's' : ''} ready to import
+                {skippedCount > 0 && <span className="text-orange-500"> ({skippedCount} skipped)</span>}
+              </p>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50">

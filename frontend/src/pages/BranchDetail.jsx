@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { getStorageDisplayUrl } from '../lib/storageUrl'
+import { formatBoardDimensions } from '../lib/formatDimensions'
+import PageLayout from '../components/PageLayout'
+import StorageImage from '../components/StorageImage'
 import SpecCard from '../components/SpecCard'
 import StatusBadge from '../components/StatusBadge'
 
 export default function BranchDetail() {
   const { siteId } = useParams()
-  const navigate = useNavigate()
   const [site, setSite] = useState(null)
   const [board, setBoard] = useState(null)
   const [estimate, setEstimate] = useState(null)
+  const [pdfUrl, setPdfUrl] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -44,6 +48,11 @@ export default function BranchDetail() {
         .limit(1)
         .maybeSingle()
       setEstimate(estData)
+
+      if (estData?.pdf_url) {
+        const resolved = await getStorageDisplayUrl('estimates-pdf', estData.pdf_url)
+        setPdfUrl(resolved)
+      }
     }
 
     setLoading(false)
@@ -51,7 +60,7 @@ export default function BranchDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Loading…</div>
       </div>
     )
@@ -59,7 +68,7 @@ export default function BranchDetail() {
 
   if (!site) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Branch not found.</div>
       </div>
     )
@@ -72,24 +81,16 @@ export default function BranchDetail() {
   const isInstalled = site.status === 'installed'
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/client')} className="text-sm text-gray-300 hover:text-white">
-            ← Back
-          </button>
-          <h1 className="text-lg font-bold">{site.name}</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          <StatusBadge status={site.status} />
-          <button onClick={() => supabase.auth.signOut()} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
-            Sign Out
-          </button>
-        </div>
-      </header>
-
-      <main className="p-6 max-w-3xl mx-auto space-y-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm">
+    <PageLayout
+      title={site.name}
+      subtitle={site.address || 'Branch detail'}
+      backTo="/client"
+      role="Client"
+      maxWidth="max-w-3xl"
+      headerRight={<StatusBadge status={site.status} />}
+    >
+      <div className="space-y-6">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-gray-400">Address</p>
@@ -111,33 +112,46 @@ export default function BranchDetail() {
                 <p className="font-medium text-green-600">Yes</p>
               </div>
             )}
+            {pdfUrl && (
+              <div className="col-span-2">
+                <p className="text-gray-400 mb-1">Quote PDF</p>
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-500 hover:underline text-sm font-medium"
+                >
+                  Download Quote PDF →
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
         {board && (
           <>
             {isInstalled && board.final_photo_url && (
-              <div className="bg-white rounded-xl p-6 shadow-sm">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                 <h2 className="font-semibold text-gray-800 mb-4">Installation Photo</h2>
-                <img
+                <StorageImage
+                  bucket="install-photos"
                   src={board.final_photo_url}
                   alt="Installed board"
                   className="max-w-full max-h-80 object-contain rounded-lg border"
-                  crossOrigin="anonymous"
                 />
               </div>
             )}
 
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
               <h2 className="font-semibold text-gray-800 mb-4">
                 {isInstalled && board.final_photo_url ? 'Survey Photo' : 'Board Photo'}
               </h2>
               {board.photo_url ? (
-                <img
+                <StorageImage
+                  bucket="site-photos"
                   src={board.photo_url}
                   alt="Board"
                   className="max-w-full max-h-64 object-contain rounded-lg border mb-4"
-                  crossOrigin="anonymous"
                 />
               ) : (
                 <p className="text-gray-400 text-sm mb-4">No survey photo available.</p>
@@ -149,7 +163,7 @@ export default function BranchDetail() {
                 </div>
                 <div>
                   <p className="text-gray-400">Dimensions</p>
-                  <p className="font-medium">{board.width_ft} × {board.height_ft} ft</p>
+                  <p className="font-medium">{formatBoardDimensions(board)}</p>
                 </div>
               </div>
             </div>
@@ -159,11 +173,11 @@ export default function BranchDetail() {
         )}
 
         {!board && (
-          <div className="bg-white rounded-xl p-6 shadow-sm text-center">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 text-center">
             <p className="text-gray-400">Survey not yet completed for this branch.</p>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </PageLayout>
   )
 }

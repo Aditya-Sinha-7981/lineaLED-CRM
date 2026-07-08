@@ -50,12 +50,15 @@ export default function SurveyScreen() {
   const [existingBoard, setExistingBoard] = useState(null)
   const [spec, setSpec] = useState(null)
 
+  const [blockedReason, setBlockedReason] = useState(null)
+
   useEffect(() => {
     fetchSite()
   }, [siteId])
 
   async function fetchSite() {
     setLoading(true)
+    setBlockedReason(null)
     const [{ data: siteData }, { data: boardData }] = await Promise.all([
       supabase.from('sites').select('*').eq('id', siteId).single(),
       supabase.from('boards').select('*').eq('site_id', siteId).maybeSingle(),
@@ -63,6 +66,33 @@ export default function SurveyScreen() {
 
     setSite(siteData)
     setExistingBoard(boardData)
+
+    if (siteData?.status === 'approved' || siteData?.status === 'installed' || siteData?.status === 'quoted') {
+      setBlockedReason(
+        siteData.status === 'installed'
+          ? 'This site is already installed. Survey cannot be edited.'
+          : siteData.status === 'approved'
+          ? 'This site is approved. Mark it installed from the staff dashboard instead of re-surveying.'
+          : 'This quote is pending client approval. You cannot re-survey while a quote is awaiting approval.'
+      )
+      setLoading(false)
+      return
+    }
+
+    if (boardData) {
+      const { data: pendingEst } = await supabase
+        .from('estimates')
+        .select('id')
+        .eq('board_id', boardData.id)
+        .eq('status', 'pending_approval')
+        .maybeSingle()
+
+      if (pendingEst) {
+        setBlockedReason('This quote is pending admin approval. Wait for admin review or a revision request before editing.')
+        setLoading(false)
+        return
+      }
+    }
 
     if (boardData) {
       setBoardType(boardData.board_type || 'video_wall')
@@ -74,6 +104,10 @@ export default function SurveyScreen() {
       }
       if (boardData.spec) {
         setSpec(boardData.spec)
+      }
+      if (boardData.board_type === 'gsb_signage' && boardData.spec) {
+        setWidthUnit(boardData.spec._widthUnit || 'in')
+        setHeightUnit(boardData.spec._heightUnit || 'in')
       }
       if (boardData.board_type === 'video_wall' && boardData.spec) {
         setEnvironment(boardData.spec._env || '')
@@ -125,6 +159,8 @@ export default function SurveyScreen() {
       result._cab = cabinetType
     } else {
       result = calculateGsbSignageSpec({ widthFt: w, heightFt: h, widthUnit, heightUnit })
+      result._widthUnit = widthUnit
+      result._heightUnit = heightUnit
     }
     setSpec(result)
   }
@@ -159,8 +195,17 @@ export default function SurveyScreen() {
         finalPhotoUrl = urlData.publicUrl
       }
 
-      const storedWidthFt = boardType === 'video_wall' ? toFeet(parseFloat(widthFt), widthUnit) : parseFloat(widthFt)
-      const storedHeightFt = boardType === 'video_wall' ? toFeet(parseFloat(heightFt), heightUnit) : parseFloat(heightFt)
+      const storedWidthFt = boardType === 'video_wall'
+        ? toFeet(parseFloat(widthFt), widthUnit)
+        : parseFloat(widthFt)
+      const storedHeightFt = boardType === 'video_wall'
+        ? toFeet(parseFloat(heightFt), heightUnit)
+        : parseFloat(heightFt)
+
+      if (boardType === 'gsb_signage') {
+        spec._widthUnit = widthUnit
+        spec._heightUnit = heightUnit
+      }
 
       const boardPayload = {
         site_id: siteId,
@@ -243,6 +288,32 @@ export default function SurveyScreen() {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-gray-500">Site not found.</div>
+      </div>
+    )
+  }
+
+  if (blockedReason) {
+    const backPath = site.status === 'approved' || site.status === 'installed'
+      ? `/staff/install/${siteId}`
+      : existingBoard
+        ? `/staff/quote/${existingBoard.id}`
+        : '/staff'
+
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl p-8 shadow-sm max-w-md text-center">
+          <div className="text-4xl mb-3">🔒</div>
+          <h2 className="font-semibold text-gray-800 mb-2">Survey Locked</h2>
+          <p className="text-sm text-gray-500 mb-4">{blockedReason}</p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => navigate('/staff')} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+              Back to Dashboard
+            </button>
+            <button onClick={() => navigate(backPath)} className="px-4 py-2 text-sm bg-orange-500 text-white hover:bg-orange-600 rounded-lg">
+              Go to Site →
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import SpecCard from '../components/SpecCard'
 import AnnotatedPhoto from '../components/AnnotatedPhoto'
 import { generateEstimatePdf, uploadPdf, htmlToCanvas, canvasToPdfBlob } from '../lib/pdfGenerator'
+import { formatBoardDimensions, boardAreaSqFt } from '../lib/formatDimensions'
 
 export default function QuotePreview() {
   const { boardId } = useParams()
@@ -244,11 +245,11 @@ export default function QuotePreview() {
                 </div>
                 <div className="mb-3">
                   <p className="text-gray-400 text-xs uppercase font-medium">Dimensions</p>
-                  <p className="font-medium">{board.width_ft} × {board.height_ft} ft</p>
+                  <p className="font-medium">{formatBoardDimensions(board)}</p>
                 </div>
                 <div className="mb-3">
                   <p className="text-gray-400 text-xs uppercase font-medium">Board Area</p>
-                  <p className="font-medium">{(board.width_ft * board.height_ft).toFixed(2)} sq ft</p>
+                  <p className="font-medium">{boardAreaSqFt(board)} sq ft</p>
                 </div>
                 {price && (
                   <div className="pt-3 border-t border-gray-200">

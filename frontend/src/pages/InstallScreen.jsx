@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import StatusBadge from '../components/StatusBadge'
+import StorageImage from '../components/StorageImage'
 
 export default function InstallScreen() {
   const { siteId } = useParams()
@@ -56,7 +57,7 @@ export default function InstallScreen() {
     setSaving(true)
     setError('')
     try {
-      let url = finalPhotoUrl
+      let storedUrl = finalPhotoUrl
 
       if (finalPhotoFile) {
         const path = `${siteId}/installed.jpg`
@@ -65,12 +66,11 @@ export default function InstallScreen() {
           .upload(path, finalPhotoFile, { upsert: true })
         if (uploadError) throw uploadError
 
-        const { data } = supabase.storage.from('install-photos').getPublicUrl(path)
-        url = data.publicUrl
+        storedUrl = path
       }
 
       if (board) {
-        await supabase.from('boards').update({ final_photo_url: url }).eq('id', board.id)
+        await supabase.from('boards').update({ final_photo_url: storedUrl }).eq('id', board.id)
       }
 
       await supabase.from('sites').update({ status: 'installed' }).eq('id', siteId)
@@ -144,12 +144,21 @@ export default function InstallScreen() {
           </button>
           {(finalPhotoPreview || (site.status === 'installed' && finalPhotoUrl)) && (
             <div className="mt-4">
-              <img
-                src={finalPhotoPreview || finalPhotoUrl}
-                alt="Final"
-                className="max-w-full max-h-64 object-contain rounded-lg border"
-                crossOrigin="anonymous"
-              />
+              {finalPhotoPreview ? (
+                <img
+                  src={finalPhotoPreview}
+                  alt="Final"
+                  className="max-w-full max-h-64 object-contain rounded-lg border"
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <StorageImage
+                  bucket="install-photos"
+                  src={finalPhotoUrl}
+                  alt="Installed"
+                  className="max-w-full max-h-64 object-contain rounded-lg border"
+                />
+              )}
             </div>
           )}
         </div>

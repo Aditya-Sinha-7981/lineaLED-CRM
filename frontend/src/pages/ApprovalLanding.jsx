@@ -5,6 +5,7 @@ export default function ApprovalLanding() {
   const [status, setStatus] = useState('loading')
 
   useEffect(() => {
+    let cancelled = false
     const pathParts = window.location.pathname.split('/')
     const token = pathParts[pathParts.length - 1]
     if (!token) {
@@ -13,15 +14,21 @@ export default function ApprovalLanding() {
     }
 
     fetch(approveTokenUrl(token), { method: 'GET' })
-      .then(res => res.text())
+      .then(res => {
+        if (!res.ok) { if (!cancelled) setStatus('invalid'); return null }
+        return res.text()
+      })
       .then(html => {
-        if (html.includes('Quote Acknowledged')) {
+        if (cancelled) return
+        if (html && html.toLowerCase().includes('acknowledged')) {
           setStatus('ok')
         } else {
           setStatus('invalid')
         }
       })
-      .catch(() => setStatus('invalid'))
+      .catch(() => { if (!cancelled) setStatus('invalid') })
+
+    return () => { cancelled = true }
   }, [])
 
   if (status === 'loading') {
