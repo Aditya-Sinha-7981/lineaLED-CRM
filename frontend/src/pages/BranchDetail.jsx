@@ -49,10 +49,6 @@ export default function BranchDetail() {
     setLoading(false)
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -73,6 +69,8 @@ export default function BranchDetail() {
     ? parseFloat(estimate.manual_price).toLocaleString('en-IN')
     : null
 
+  const isInstalled = site.status === 'installed'
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
@@ -84,7 +82,7 @@ export default function BranchDetail() {
         </div>
         <div className="flex items-center gap-4">
           <StatusBadge status={site.status} />
-          <button onClick={handleSignOut} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
+          <button onClick={() => supabase.auth.signOut()} className="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">
             Sign Out
           </button>
         </div>
@@ -118,14 +116,32 @@ export default function BranchDetail() {
 
         {board && (
           <>
+            {isInstalled && board.final_photo_url && (
+              <div className="bg-white rounded-xl p-6 shadow-sm">
+                <h2 className="font-semibold text-gray-800 mb-4">Installation Photo</h2>
+                <img
+                  src={board.final_photo_url}
+                  alt="Installed board"
+                  className="max-w-full max-h-80 object-contain rounded-lg border"
+                  crossOrigin="anonymous"
+                />
+              </div>
+            )}
+
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="font-semibold text-gray-800 mb-4">Board</h2>
-              <img
-                src={board.photo_url}
-                alt="Board"
-                className="max-w-full max-h-64 object-contain rounded-lg border mb-4"
-                crossOrigin="anonymous"
-              />
+              <h2 className="font-semibold text-gray-800 mb-4">
+                {isInstalled && board.final_photo_url ? 'Survey Photo' : 'Board Photo'}
+              </h2>
+              {board.photo_url ? (
+                <img
+                  src={board.photo_url}
+                  alt="Board"
+                  className="max-w-full max-h-64 object-contain rounded-lg border mb-4"
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <p className="text-gray-400 text-sm mb-4">No survey photo available.</p>
+              )}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-400">Type</p>

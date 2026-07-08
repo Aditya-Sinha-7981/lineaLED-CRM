@@ -9,10 +9,10 @@ function getSiteAction(site) {
   const boardId = site.boards?.[0]?.id || site.boards?.id
   if (site.status === 'not_surveyed') return { label: 'Survey', to: `/staff/survey/${site.id}` }
   if (site.status === 'needs_revision') return { label: 'Revise Survey', to: `/staff/survey/${site.id}` }
-  if (boardId && (site.status === 'quoted' || site.status === 'approved' || site.status === 'installed')) {
-    if (site.status === 'quoted') return { label: 'View Quote', to: `/staff/quote/${boardId}` }
-    return { label: 'View', to: `/staff/survey/${site.id}` }
-  }
+  if (site.status === 'approved') return { label: 'Mark Installed', to: `/staff/install/${site.id}`, accent: true }
+  if (site.status === 'installed') return { label: 'View', to: `/staff/install/${site.id}` }
+  if (boardId && site.status === 'quoted') return { label: 'View Quote', to: `/staff/quote/${boardId}` }
+  if (boardId) return { label: 'View', to: `/staff/survey/${site.id}` }
   return { label: 'View', to: `/staff/survey/${site.id}` }
 }
 
@@ -192,7 +192,14 @@ export default function StaffDashboard() {
                       <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{site.address || '—'}</td>
                       <td className="px-4 py-3"><StatusBadge status={site.status} /></td>
                       <td className="px-4 py-3">
-                        <Link to={action.to} className="text-orange-500 hover:underline text-sm">
+                        <Link
+                          to={action.to}
+                          className={`hover:underline text-sm ${
+                            action.accent
+                              ? 'text-emerald-600 font-semibold'
+                              : 'text-orange-500'
+                          }`}
+                        >
                           {action.label}
                         </Link>
                       </td>

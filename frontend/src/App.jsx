@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import StaffDashboard from './pages/StaffDashboard'
 import SurveyScreen from './pages/SurveyScreen'
 import QuotePreview from './pages/QuotePreview'
+import InstallScreen from './pages/InstallScreen'
 import OwnerDashboard from './pages/OwnerDashboard'
 import ApprovalDetail from './pages/ApprovalDetail'
 import ClientOrgSetup from './pages/ClientOrgSetup'
@@ -59,6 +60,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['staff']}>
               <QuotePreview />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/staff/install/:siteId"
+          element={
+            <ProtectedRoute allowedRoles={['staff']}>
+              <InstallScreen />
             </ProtectedRoute>
           }
         />

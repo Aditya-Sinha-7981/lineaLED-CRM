@@ -95,6 +95,26 @@ Keep log entries honest. If something is broken or incomplete, say so.
 ---
 
 ---
+### 2026-07-08 — Install Screen (Step 12)
+**Task:** Build InstallScreen — final photo upload, status → 'installed'.
+**Built:** `frontend/src/pages/InstallScreen.jsx` (final photo upload to install-photos bucket, guard preventing non-approved sites from being marked installed, uploads final_photo_url to boards table, updates site status to 'installed', redirects to /staff), updated `StaffDashboard.jsx` action links (approved sites show "Mark Installed" in green, routed to /staff/install/:id), updated `App.jsx` with /staff/install/:siteId route.
+**How it works:** Staff clicks "Mark Installed" on an approved site → uploads final photo to install-photos bucket → sets boards.final_photo_url → sets sites.status = 'installed'. The install-photos bucket needs RLS policies identical to site-photos.
+**Connects to:** StaffDashboard action link for approved sites, install-photos storage bucket, boards.final_photo_url field.
+**Decisions made:** (1) Guard in InstallScreen prevents marking non-approved sites as installed. (2) Existing final_photo_url is preserved if no new photo uploaded. (3) Installed sites show "View" (not "Install" again) in staff dashboard.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
+### 2026-07-08 — Demo Data + Final Verification (Step 13)
+**Task:** Provide SQL seed script for demo data, verify full end-to-end loop.
+**Built:** SQL seed script with 8 sites across different statuses (installed×2, approved×1, quoted×1, needs_revision×1, not_surveyed×3). SQL for install-photos bucket + RLS policies. Full demo script walkthrough documented.
+**How it works:** Seed script creates realistic branch names across Indian cities at different workflow stages so the full demo script (CORE.md §Demo Script) can be run end-to-end without manual DB fixes.
+**Connects to:** All three role dashboards, progress rollup, full approval loop.
+**Decisions made:** (1) Seed data uses real Indian city branch names for realistic demo feel. (2) Sites distributed across all 5 statuses to demonstrate the full workflow. (3) All demo data assigned to first staff user found.
+**Deviations from MD:** None.
+**Status:** Done
+---
+
 ### 2026-07-08 — Bug fixes + Admin Setup refinement
 **Task:** Fix bugs across existing flows (especially admin org/user setup), refine what we have into a stable product without building Steps 10–13 new features. Update log with detailed description.
 **Built:**
@@ -155,5 +175,32 @@ Keep log entries honest. If something is broken or incomplete, say so.
 See **`logs/HANDOFF.md`** — full bug list, visibility model (org vs project vs site), deploy checklist, and copy-paste prompts for:
 1. Steps 10–13 agent (client portal, install flow, demo rehearsal)
 2. Final finishing touches agent (calc engines, migrations, polish)
+
+---
+
+---
+### 2026-07-08 — Post Step 12–13 fixes: install photos on client portal + admin org progress
+**Task:** Review Steps 12–13 logs, fix install photos not showing on client portal, add admin per-org site progress view.
+**Built:**
+- `frontend/src/pages/BranchDetail.jsx` — shows `boards.final_photo_url` as "Installation Photo" when site is installed; survey photo shown separately below
+- `frontend/src/pages/ClientPortal.jsx` — loads **all projects and all sites** for the client's org (removed `projects.limit(1)` bug); added project filter dropdown when org has multiple projects
+- `frontend/src/pages/OwnerDashboard.jsx` — new "Organization Progress" section: overall rollup + per-org breakdown with per-project installed/total counts and progress bars
+- `frontend/src/pages/InstallScreen.jsx` — shows existing `final_photo_url` when viewing already-installed sites (staff "View" action)
+
+**How it works:** Install photos were uploading correctly to `install-photos` and saving to `boards.final_photo_url`, but `BranchDetail` only rendered the survey `photo_url` — clients never saw the install image. Client portal also only loaded one arbitrary project, so demo data in other projects appeared as "1 site". Admin dashboard now queries `client_orgs → projects → sites` nested and shows installed counts per org and per project.
+
+**Connects to:** Step 12 InstallScreen (upload path unchanged), Step 10 ClientPortal/BranchDetail, admin OwnerDashboard. Fixes HANDOFF bugs B2 (multi-project) and B17 (no install photo on client).
+
+**Bugs found in Steps 12–13 logs (not fixed in those sessions):**
+1. Step 12 log marked Done but BranchDetail never wired to `final_photo_url` — fixed here
+2. Step 13 seed/demo worked but ClientPortal `limit(1)` left multi-project orgs broken — fixed here
+3. Admin had only global installed count, no org breakdown — fixed here
+4. InstallScreen didn't preview saved photo on re-visit — fixed here
+
+**Decisions made:** Client portal defaults to all org sites aggregated; project filter only shown when org has 2+ projects. Admin org progress uses nested Supabase select (no new API).
+
+**Deviations from MD:** None — aligns with CORE Step 10 (progress rollup accurate) and Step 12 (client sees install result).
+
+**Status:** Done — `npm run build` passes. If install photo still doesn't render, check `install-photos` bucket is public or has client read RLS (same as `site-photos`).
 
 ---
