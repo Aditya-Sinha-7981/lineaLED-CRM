@@ -204,3 +204,37 @@ See **`logs/HANDOFF.md`** — full bug list, visibility model (org vs project vs
 **Status:** Done — `npm run build` passes. If install photo still doesn't render, check `install-photos` bucket is public or has client read RLS (same as `site-photos`).
 
 ---
+
+### 2026-07-09 — Touch support for PhotoAnnotator + admin price edit at approval
+**Task:** Two surgical changes — (1) PhotoAnnotator touch support for field staff on phones, (2) admin can edit quote price in ApprovalDetail before approving.
+
+**Built:**
+- `frontend/src/components/PhotoAnnotator.jsx` — full rewrite: replaced mouse events with Pointer Events (`onPointerDown/Move/Up/Cancel`), added `setPointerCapture` on pointerdown so drag continues even if finger drifts off canvas, added `touch-action: none` on canvas and `user-select: none` on wrapper to prevent browser scroll hijack, added devicePixelRatio-aware canvas sizing (backing store = `offsetWidth * dpr`) so rectangle is crisp on high-DPI phone screens, clamped pointer coords to canvas bounds, increased min drag threshold from 5px to 2% of smaller canvas dimension (accidental tap rejection), added dim overlay (rgba(0,0,0,.34)) outside the live selection rectangle while dragging, refitted canvas on image load and window resize/orientationchange
+- `frontend/src/pages/ApprovalDetail.jsx` — added `editedPrice` state initialized from `estimate.manual_price` on load; when `status === 'pending_approval'`, price field becomes an editable number input with helper text ("Staff proposed ₹X — adjust if needed; your figure is final"); `handleApproveSend` now validates price (rejects empty/zero/negative with inline error), persists `manual_price` via direct supabase-js update before calling the edge function, then calls edge function; if edge function fails after price is saved, error is surfaced but updated price persists; input is read-only again once `approved` or `needs_revision`
+- `frontend/src/pages/QuotePreview.jsx` — no changes needed: `disabled={isPending}` on price input and "pending approval" notice were already present (nice-to-have already implemented)
+
+**How it works (Change 1):** Pointer Events unify mouse/touch/stylus into one event model. `setPointerCapture` ensures all pointer events are delivered to the canvas even when the finger moves outside the canvas bounds. The canvas backing store is sized at `devicePixelRatio` scale so drawing is crisp on Retina/HiDPI displays. A 2% minimum drag threshold rejects accidental taps without needing a separate "confirm" tap. The overlay dimming gives clear visual feedback of the selected region vs. the rest of the photo.
+
+**How it works (Change 2):** Admin sees an editable price field only while the estimate is `pending_approval`. On approve, the price is written directly to `estimates.manual_price` (bypassing the edge function since that only handles `status` transitions per API_CONTRACT.md §3), then the edge function is called to handle the email and status atomically. If the edge function fails, the saved price remains — the staff's proposal is preserved for retry.
+
+**API_CONTRACT.md compliance:**
+- Change 1: `boards.annotation` shape `{x_pct, y_pct, w_pct, h_pct}` is unchanged — only the input mechanism changed
+- Change 2: Estimates contract says `admin … yes (status → approved/needs_revision only via Edge Function §3, not direct)`. `manual_price` is not restricted — direct update is contract-compliant. Edge function is still used exclusively for `status → approved`. No contract change.
+
+**Deviations from MD:** None.
+
+**Status:** Done — `npm run build` passes. Both changes surgically scoped to named files only.
+
+---
+
+### 2026-07-09 — Add "Created by WEBNOAH" footer
+**Task:** Add a persistent footer on all pages bearing the WEBNOAH attribution.
+
+**Built:**
+- `frontend/src/App.jsx` — wrapped all routes in a `flex-1` div inside a `flex flex-col` container, added a fixed `<footer>` with `bg-gray-900 text-gray-500 text-center py-3 text-xs` showing "Created by **WEBNOAH**". Footer uses `select-none` to prevent accidental text selection. Appears at the bottom of every page including the public approval landing page.
+
+**How it works:** Flexbox column layout ensures the footer always sits at the bottom of the viewport even when page content is shorter than the screen.
+
+**Deviations from MD:** None.
+
+**Status:** Done.

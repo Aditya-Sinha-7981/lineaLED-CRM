@@ -37,7 +37,9 @@ function ProtectedRoute({ children, allowedRoles }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <div className="min-h-screen flex flex-col">
+        <div className="flex-1">
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route
           path="/staff"
@@ -115,6 +117,11 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </div>
+      <footer className="bg-gray-900 text-gray-500 text-center py-3 text-xs select-none">
+        Created by <span className="text-gray-400 font-medium">WEBNOAH</span>
+      </footer>
+      </div>
     </BrowserRouter>
   )
 }

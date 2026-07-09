@@ -15,6 +15,8 @@ export default function ApprovalDetail() {
   const [site, setSite] = useState(null)
   const [clientOrg, setClientOrg] = useState(null)
   const [error, setError] = useState('')
+  const [editedPrice, setEditedPrice] = useState('')
+  const [priceError, setPriceError] = useState('')
 
   useEffect(() => {
     fetchData()
@@ -33,6 +35,7 @@ export default function ApprovalDetail() {
       setBoard(est.boards)
       setSite(est.boards?.sites)
       setClientOrg(est.boards?.sites?.projects?.client_orgs)
+      setEditedPrice(est.manual_price != null ? String(est.manual_price) : '')
     }
     setLoading(false)
   }
@@ -41,8 +44,22 @@ export default function ApprovalDetail() {
     if (sending) return
     setSending(true)
     setError('')
+    setPriceError('')
+
+    const priceNum = parseFloat(editedPrice)
+    if (editedPrice === '' || isNaN(priceNum) || priceNum <= 0) {
+      setPriceError('Please enter a valid price greater than zero.')
+      setSending(false)
+      return
+    }
 
     try {
+      const { error: priceErr } = await supabase
+        .from('estimates')
+        .update({ manual_price: priceNum })
+        .eq('id', estimateId)
+      if (priceErr) throw new Error(`Failed to save price: ${priceErr.message}`)
+
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
 
@@ -58,7 +75,7 @@ export default function ApprovalDetail() {
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.error || 'Approval failed')
+        throw new Error(data.error || 'Approval failed — price has been saved.')
       }
 
       navigate('/admin')
@@ -115,6 +132,7 @@ export default function ApprovalDetail() {
     : null
 
   const alreadyApproved = estimate.status === 'approved'
+  const isPending = estimate.status === 'pending_approval'
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -166,7 +184,25 @@ export default function ApprovalDetail() {
             </div>
             <div>
               <p className="text-gray-400">Price</p>
-              <p className="font-medium text-orange-600">{price ? `₹${price}` : '—'}</p>
+              {isPending ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-orange-500 font-medium">₹</span>
+                  <input
+                    type="number"
+                    value={editedPrice}
+                    onChange={e => { setEditedPrice(e.target.value); setPriceError('') }}
+                    className="w-32 px-2 py-0.5 border border-orange-300 rounded text-orange-600 font-medium text-sm"
+                    placeholder="Enter"
+                  />
+                </div>
+              ) : (
+                <p className="font-medium text-orange-600">{price ? `₹${price}` : '—'}</p>
+              )}
+              {isPending && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Staff proposed ₹{price || '—'} — adjust if needed; your figure is final.
+                </p>
+              )}
             </div>
           </div>
           {estimate.pdf_url && (
@@ -183,8 +219,11 @@ export default function ApprovalDetail() {
 
         <SpecCard spec={board?.spec} boardType={board?.board_type} />
 
-        {!alreadyApproved && (
+        {isPending && (
           <div className="bg-white rounded-xl p-6 shadow-sm">
+            {priceError && (
+              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm mb-4">{priceError}</div>
+            )}
             <h3 className="font-semibold text-gray-800 mb-3">Approval Action</h3>
             <p className="text-sm text-gray-400 mb-4">
               "Approve &amp; Send" sends an acknowledgment email to the client, then marks the quote and site as approved.
